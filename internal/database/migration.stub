@@ -1,0 +1,21 @@
+package migrations
+
+import (
+	"context"
+
+	"github.com/yaza-putu/golang-starter-mongo-api/internal/database"
+	"go.mongodb.org/mongo-driver/mongo"
+)
+
+func init() {
+	// change collection name
+	const collectionName = "users"
+	database.MigrationRegister(func(context context.Context, db *mongo.Database) error { // create collection
+		// change entity
+		user := entity.User{}
+		_, err := db.Collection(collectionName).InsertOne(context, user)
+		return err
+	}, func(context context.Context, db *mongo.Database) error { // drop collection
+		return db.Collection(collectionName).Drop(context)
+	})
+}
