@@ -2,10 +2,12 @@ package core
 
 import (
 	"fmt"
+	"net"
 	"path/filepath"
 	"runtime"
 
 	"github.com/spf13/viper"
+	"github.com/yaza-putu/golang-starter-mongo-api/internal/config"
 	"github.com/yaza-putu/golang-starter-mongo-api/internal/database"
 	_ "github.com/yaza-putu/golang-starter-mongo-api/internal/database/migrations"
 )
@@ -33,11 +35,23 @@ func EnvTesting() error {
 	Mongo()
 
 	// run server
-	go HttpServe()
+	if !isPortActive() {
+		go HttpServe()
+	}
 
 	return err
 }
 
 func EnvRollback() {
 	database.DownMigration()
+}
+
+func isPortActive() bool {
+	addr := fmt.Sprintf(":%d", config.Host().Port)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return true
+	}
+	ln.Close()
+	return false
 }
