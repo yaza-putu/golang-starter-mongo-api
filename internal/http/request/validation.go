@@ -21,6 +21,7 @@ import (
 	"github.com/yaza-putu/golang-starter-mongo-api/internal/pkg/logger"
 	filePkg "github.com/yaza-putu/golang-starter-mongo-api/pkg/file"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type (
@@ -79,6 +80,13 @@ func Validation(s any, opts ...optFunc) (response.DataApi, error) {
 			return t
 		})
 
+		_ = v.RegisterTranslation("when", trans, func(ut ut.Translator) error {
+			return ut.Add("when", "{0} wajib di isi", true) // see universal-translator for details
+		}, func(ut ut.Translator, fe validator.FieldError) string {
+			t, _ := ut.T("when", fe.Field())
+			return t
+		})
+
 		break
 	default:
 		if err := transalation_en.RegisterDefaultTranslations(v, trans); err != nil {
@@ -99,6 +107,13 @@ func Validation(s any, opts ...optFunc) (response.DataApi, error) {
 			return t
 		})
 
+		_ = v.RegisterTranslation("when", trans, func(ut ut.Translator) error {
+			return ut.Add("when", "{0} is a required", true) // see universal-translator for details
+		}, func(ut ut.Translator, fe validator.FieldError) string {
+			t, _ := ut.T("when", fe.Field())
+			return t
+		})
+
 		break
 	}
 
@@ -109,6 +124,12 @@ func Validation(s any, opts ...optFunc) (response.DataApi, error) {
 	}
 
 	err = v.RegisterValidation("filetype", filetype)
+
+	if err != nil {
+		return response.Api(response.SetMessage(err)), err
+	}
+
+	err = v.RegisterValidation("when", when)
 
 	if err != nil {
 		return response.Api(response.SetMessage(err)), err
@@ -194,4 +215,32 @@ func unique(fl validator.FieldLevel) bool {
 	default:
 		return true
 	}
+}
+
+func when(fl validator.FieldLevel) bool {
+	param := fl.Param()
+
+	params := strings.Split(param, ":")
+	id := fl.Parent().FieldByName("ID").Interface().(primitive.ObjectID)
+	blankId := primitive.ObjectID{}
+
+	if len(params) < 2 {
+		return false
+	}
+
+	switch params[0] {
+	case "update":
+		if params[1] == "required" && id != blankId && fl.Field().String() == "" {
+			return false
+		}
+		return true
+	case "create":
+		if params[1] == "required" && id == blankId && fl.Field().String() == "" {
+			return false
+		}
+
+		return true
+	}
+
+	return true
 }
