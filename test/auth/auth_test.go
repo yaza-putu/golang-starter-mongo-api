@@ -14,11 +14,23 @@ import (
 	"github.com/yaza-putu/golang-starter-mongo-api/internal/config"
 	"github.com/yaza-putu/golang-starter-mongo-api/internal/core"
 	response2 "github.com/yaza-putu/golang-starter-mongo-api/internal/http/response"
+	"github.com/yaza-putu/golang-starter-mongo-api/internal/pkg/i18n"
 )
 
-type e2eTestSuite struct {
-	suite.Suite
-}
+type (
+	e2eTestSuite struct {
+		suite.Suite
+	}
+	expect struct {
+		code    int
+		include []string
+	}
+	testTable struct {
+		name   string
+		data   string
+		expect expect
+	}
+)
 
 func TestE2ETestSuite(t *testing.T) {
 	suite.Run(t, &e2eTestSuite{})
@@ -26,6 +38,7 @@ func TestE2ETestSuite(t *testing.T) {
 
 func (s *e2eTestSuite) SetupSuite() {
 	s.Require().NoError(core.EnvTesting())
+	i18n.New(i18n.SetLocale("en"))
 }
 
 // this function executes after all tests executed
@@ -33,78 +46,66 @@ func (s *e2eTestSuite) TearDownSuite() {
 	core.EnvRollback()
 }
 
-func (s *e2eTestSuite) TestCreateToken() {
-	reqStr := `{"email":"admin@mail.com","password" : "Password1"}`
+func (s *e2eTestSuite) TestToken() {
+	testTable := []testTable{
+		{
+			name: "create token",
+			data: `{"email":"admin@mail.com","password" : "Password1"}`,
+			expect: expect{
+				code:    http.StatusOK,
+				include: []string{"access_token"},
+			},
+		},
+		{
+			name: "credential not match",
+			data: `{"email":"admin@mail.com","password" : "1"}`,
+			expect: expect{
+				code:    http.StatusUnauthorized,
+				include: []string{},
+			},
+		},
+		{
+			name: "validation email",
+			data: `{"email":"","password" : "sdsfsd"}`,
+			expect: expect{
+				code:    http.StatusUnprocessableEntity,
+				include: []string{"Email is a required"},
+			},
+		},
+		{
+			name: "validation password",
+			data: `{"email":"m@mail.com","password" : ""}`,
+			expect: expect{
+				code:    http.StatusUnprocessableEntity,
+				include: []string{"Password is a required"},
+			},
+		},
+	}
 
-	req, err := http.NewRequest(echo.POST, fmt.Sprintf("http://localhost:%d/api/v1/token", config.Host().Port), strings.NewReader(reqStr))
-	s.NoError(err)
+	for _, t := range testTable {
+		s.Run(t.name, func() {
+			req, err := http.NewRequest(echo.POST, fmt.Sprintf("http://localhost:%d/api/v1/token", config.Host().Port), strings.NewReader(t.data))
+			s.NoError(err)
 
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 
-	client := http.Client{}
+			client := http.Client{}
 
-	response, err := client.Do(req)
-	byteBody, err := ioutil.ReadAll(response.Body)
-	s.NoError(err)
+			response, err := client.Do(req)
+			byteBody, err := ioutil.ReadAll(response.Body)
+			s.NoError(err)
 
-	s.Equal(http.StatusOK, response.StatusCode)
-	assert.Contains(s.T(), strings.Trim(string(byteBody), "\n"), "access_token")
+			s.Equal(t.expect.code, response.StatusCode)
 
-	defer response.Body.Close()
-}
+			if len(t.expect.include) > 0 {
+				for _, include := range t.expect.include {
+					assert.Contains(s.T(), strings.Trim(string(byteBody), "\n"), include)
+				}
+			}
 
-func (s *e2eTestSuite) TestWrongCredintial() {
-	reqStr := `{"email":"admin@mail.com","password" : "1"}`
-
-	req, err := http.NewRequest(echo.POST, fmt.Sprintf("http://localhost:%d/api/v1/token", config.Host().Port), strings.NewReader(reqStr))
-	s.NoError(err)
-
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-
-	client := http.Client{}
-
-	response, err := client.Do(req)
-	s.NoError(err)
-
-	s.Equal(http.StatusUnauthorized, response.StatusCode)
-
-	defer response.Body.Close()
-}
-
-func (s *e2eTestSuite) TestValidationPassword() {
-	reqStr := `{"email":"admin@mail.com","password" : ""}`
-
-	req, err := http.NewRequest(echo.POST, fmt.Sprintf("http://localhost:%d/api/v1/token", config.Host().Port), strings.NewReader(reqStr))
-	s.NoError(err)
-
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-
-	client := http.Client{}
-
-	response, err := client.Do(req)
-	s.NoError(err)
-
-	s.Equal(http.StatusUnprocessableEntity, response.StatusCode)
-
-	defer response.Body.Close()
-}
-
-func (s *e2eTestSuite) TestValidationEmail() {
-	reqStr := `{"email":"","password" : "Password1"}`
-
-	req, err := http.NewRequest(echo.POST, fmt.Sprintf("http://localhost:%d/api/v1/token", config.Host().Port), strings.NewReader(reqStr))
-	s.NoError(err)
-
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-
-	client := http.Client{}
-
-	response, err := client.Do(req)
-	s.NoError(err)
-
-	s.Equal(http.StatusUnprocessableEntity, response.StatusCode)
-
-	defer response.Body.Close()
+			defer response.Body.Close()
+		})
+	}
 }
 
 func (s *e2eTestSuite) TestRenewalToken() {

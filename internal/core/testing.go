@@ -34,6 +34,9 @@ func EnvTesting() error {
 	// call database
 	Mongo()
 
+	// run i18n
+	I18n()
+
 	// run server
 	if !isPortActive() {
 		go HttpServe()
